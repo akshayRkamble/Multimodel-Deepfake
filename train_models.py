@@ -171,6 +171,29 @@ def train_cnn_model(data_dir='data/processed/processed_videos', output_path='mod
     torch.save(model.state_dict(), output_path)
     print(f"\nCNN model saved to {output_path}")
     
+    # --- Evaluation metrics on validation set ---
+    from sklearn.metrics import classification_report, confusion_matrix
+    y_true = []
+    y_pred = []
+    model.eval()
+    with torch.no_grad():
+        for frames, labels in val_loader:
+            frames, labels = frames.to(device), labels.to(device)
+            outputs = model(frames)
+            _, predicted = torch.max(outputs.data, 1)
+            y_true.extend(labels.cpu().numpy())
+            y_pred.extend(predicted.cpu().numpy())
+    print("\nValidation Classification Report:")
+    unique_labels = sorted(set(y_true + y_pred))
+    label_map = {0: 'Real', 1: 'Fake'}
+    target_names = [label_map[l] for l in unique_labels if l in label_map]
+    try:
+        print(classification_report(y_true, y_pred, target_names=target_names, labels=unique_labels))
+    except ValueError as e:
+        print(f"[Warning] Could not compute full classification report: {e}")
+        print(classification_report(y_true, y_pred, labels=unique_labels))
+    print("Confusion Matrix:")
+    print(confusion_matrix(y_true, y_pred, labels=unique_labels))
     return model
 
 def create_multimodal_dataset():

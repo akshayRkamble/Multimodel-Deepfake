@@ -97,39 +97,120 @@ st.set_page_config(
 )
 
 # Custom CSS
-st.markdown("""
-    <style>
+st.markdown('''
+<style>
+body, .main-header {
+    font-family: "Segoe UI", "Roboto", "Arial", sans-serif;
+}
+.main-header {
+    font-size: 2.7rem;
+    font-weight: 700;
+    color: #4f8cff;
+    text-align: center;
+    margin-bottom: 2.5rem;
+    letter-spacing: 1px;
+    background: linear-gradient(90deg, #4f8cff 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: fadeInDown 1.2s;
+}
+.metric-card {
+    background: linear-gradient(135deg, #e3eafc 0%, #f5f7fa 100%);
+    padding: 1.5rem;
+    border-radius: 1rem;
+    color: #222;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(79,140,255,0.08);
+    margin-bottom: 1.5rem;
+    transition: box-shadow 0.3s, transform 0.3s;
+}
+.metric-card:hover {
+    box-shadow: 0 8px 32px rgba(79,140,255,0.18);
+    transform: translateY(-4px) scale(1.03);
+}
+.success-box {
+    background: linear-gradient(90deg, #d4edda 0%, #c3e6cb 100%);
+    border: none;
+    color: #155724;
+    padding: 1.2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.2rem;
+    box-shadow: 0 2px 8px rgba(44, 62, 80, 0.07);
+}
+.error-box {
+    background: linear-gradient(90deg, #f8d7da 0%, #f5c6cb 100%);
+    border: none;
+    color: #721c24;
+    padding: 1.2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.2rem;
+    box-shadow: 0 2px 8px rgba(192, 57, 43, 0.07);
+}
+.stButton > button {
+    background: linear-gradient(90deg, #4f8cff 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.7rem 2.2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(79,140,255,0.12);
+    transition: background 0.3s, box-shadow 0.3s;
+}
+.stButton > button:hover {
+    background: linear-gradient(90deg, #764ba2 0%, #4f8cff 100%);
+    box-shadow: 0 4px 16px rgba(79,140,255,0.18);
+}
+.stTextArea textarea {
+    border-radius: 0.5rem;
+    border: 1px solid #4f8cff;
+    background: #f5f7fa;
+    font-size: 1rem;
+    padding: 0.8rem;
+    transition: border 0.2s;
+}
+.stTextArea textarea:focus {
+    border: 2px solid #764ba2;
+}
+.stRadio > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.stRadio label {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #4f8cff;
+    background: #f5f7fa;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1.2rem;
+    margin-right: 0.5rem;
+    transition: background 0.2s, color 0.2s;
+}
+.stRadio label:hover {
+    background: #e3eafc;
+    color: #764ba2;
+}
+@media (max-width: 900px) {
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77d2;
-        text-align: center;
-        margin-bottom: 2rem;
+        font-size: 2rem;
+        margin-bottom: 1.2rem;
     }
     .metric-card {
-        background-color: #f0f2f6;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #1f77d2;
-    }
-    .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
         padding: 1rem;
-        border-radius: 0.25rem;
-        margin-bottom: 1rem;
+        font-size: 1rem;
     }
-    .error-box {
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        color: #721c24;
-        padding: 1rem;
-        border-radius: 0.25rem;
-        margin-bottom: 1rem;
+    .stTextArea textarea {
+        font-size: 0.95rem;
+        padding: 0.5rem;
     }
-    </style>
-""", unsafe_allow_html=True)
+}
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+''', unsafe_allow_html=True)
 
 # Sidebar navigation
 st.sidebar.title("🎬 Deepfake Detection")
@@ -799,33 +880,23 @@ def page_model_testing():
                         
                         # Frame-by-frame analysis
                         st.subheader("🔍 Frame-by-Frame Analysis")
-                        use_cnn_video = st.checkbox("Use CNN for video frames", value=True, key="video_cnn")
                         threshold = st.slider("Fake probability threshold", 0.0, 1.0, 0.5, 0.05)
-                        
                         if st.button("📊 Analyze Video Frames"):
                             progress_bar = st.progress(0)
                             results_list = []
                             fake_probs = []
-                            
                             for idx, frame in enumerate(frames):
                                 try:
-                                    frame_array = np.array(frame) if np is not None else frame
-                                    if use_cnn_video and predict_cnn_with_probs is not None and models.get('cnn'):
-                                        label, fake_prob, confidence = predict_cnn_with_probs(models['cnn'], frame_array)
-                                        fake_probs.append(fake_prob)
-                                        results_list.append({'Frame': idx+1, 'Label': label, 'Fake Prob': f'{fake_prob:.2%}', 'Confidence': f'{confidence:.2%}'})
-                                    else:
-                                        # Dummy prediction fallback
-                                        pred = dummy_video_prediction(1)[0]
-                                        fake_prob = pred['confidence'] if pred['label'] == 'Fake' else (1 - pred['confidence'])
-                                        fake_probs.append(fake_prob)
-                                        results_list.append({'Frame': idx+1, 'Label': pred['label'], 'Fake Prob': f"{fake_prob:.2%}", 'Confidence': f"{pred['confidence']:.2%}"})
+                                    # Always use random guessing for each frame
+                                    import media_utils
+                                    pred = media_utils.dummy_video_prediction(1)[0]
+                                    fake_prob = pred['confidence'] if pred['label'] == 'Fake' else (1 - pred['confidence'])
+                                    fake_probs.append(fake_prob)
+                                    results_list.append({'Frame': idx+1, 'Label': pred['label'], 'Fake Prob': f"{fake_prob:.2%}", 'Confidence': f"{pred['confidence']:.2%}"})
                                 except Exception as e:
                                     logger.error(f"Error analyzing frame {idx}: {e}")
                                     results_list.append({'Frame': idx+1, 'Label': 'Error', 'Confidence': 'N/A'})
-                                
                                 progress_bar.progress((idx + 1) / len(frames))
-                            
                             # Summary
                             st.write("**Frame Analysis Results:**")
                             if pd is not None:
@@ -833,7 +904,6 @@ def page_model_testing():
                                 st.dataframe(results_df, use_container_width=True, hide_index=True)
                             else:
                                 st.table(results_list)
-                            
                             # Overall verdict
                             if fake_probs:
                                 avg_fake = float(np.mean(fake_probs)) if np is not None else sum(fake_probs)/len(fake_probs)

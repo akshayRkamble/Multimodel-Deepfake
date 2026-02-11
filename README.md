@@ -194,4 +194,10 @@ This project supports Docker to simplify setup and deployment. The `Dockerfile` 
 ## License
 
 This project is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License. By using this software, you agree to the terms stated in the [LICENSE](LICENSE) file.
+
+
+
+## Run this Stramlitfile 
+
+F:/AMG-Project/Multimodel/.venv/Scripts/python.exe -m streamlit run app.py
 ``` 
