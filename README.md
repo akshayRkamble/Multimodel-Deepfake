@@ -201,3 +201,12 @@ This project is licensed under the Creative Commons Attribution-NonCommercial-No
 
 F:/AMG-Project/Multimodel/.venv/Scripts/python.exe -m streamlit run app.py
 ``` 
+// new run  method 
+
+PS F:\AMG-Project\Multimodel> pwd; Get-ChildItem -Name; py -3 --version; python --version; if (Test-Path .venv) { Write-Output 'VENV_EXISTS' }
+
+
+
+// secondly run 
+
+F:\AMG-Project\Multimodel> py -3 -m streamlit run app.py
