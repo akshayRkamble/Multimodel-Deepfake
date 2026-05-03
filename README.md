@@ -1,212 +1,91 @@
 # Multidisciplinary Deepfake Detection
 
-This repository contains a solution for detecting deepfakes across multiple modalities, including images, audio, and video. The system leverages various machine learning models, including CNNs, Transformers, SVMs, Bayesian models, and Vision Transformers, to classify real and fake data effectively.
+This project detects manipulated media across multiple modalities: images, videos, audio, tabular features, and text similarity. The frontend is now a React application in `ui/`.
 
-## Table of Contents
+## Project Structure
 
-- [Project Overview](#project-overview)
-- [Directory Structure](#directory-structure)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Running the Project](#running-the-project)
-- [Models](#models)
-- [Notebooks](#notebooks)
-- [Logging](#logging)
-- [Docker Support](#docker-support)
-- [License](#license)
-
-## Project Overview
-
-This project is designed to detect deepfakes using a combination of different models applied to image, audio, and video data. It includes:
-- **Image Classification** using CNNs and Vision Transformers.
-- **Audio Classification** using advanced models and preprocessing techniques.
-- **Video Classification** by analyzing frames using deep learning models.
-- **NLP for Text Analysis** in videos where necessary.
-
-## Directory Structure
-
-The repository is organized as follows:
-
-```
-multidisciplinary-deepfake-detection/
-│
-├── data/
-│   ├── raw/                # Raw data
-│   ├── processed/          # Processed data
-│   └── sample_data.csv     # Example data file
-│
-├── models/
-│   ├── saved_models/       # Trained models
-│   ├── cnn_model.h5        # CNN model
-│   ├── transformer_model.pth # Transformer model
-│   ├── svm_model.pkl       # SVM model
-│   ├── bayesian_model.pkl  # Bayesian model
-│   ├── vision_transformer_model.pth # Vision Transformer model
-│   └── model_architecture.png # Model architecture visualization
-│
-├── notebooks/              # Jupyter notebooks for EDA, training, and evaluation
-│   ├── Data Preprocessing.ipynb
-│   ├── Exploratory Data Analysis.ipynb
-│   ├── Model Training.ipynb
-│   └── Model Evaluation.ipynb
-│
-├── scripts/                # Shell and Python scripts
-│   ├── download_data.sh
-│   ├── preprocess_data.py
-│   ├── generate_report.py
-│   ├── train_all_models.sh
-│   └── evaluate_all_models.sh
-│
-├── src/                    # Source code for models, data processing, and utilities
-│   ├── dataset/
-│   ├── models/
-│   ├── training/
-│   ├── evaluation/
-│   ├── utils/
-│   ├── processing/
-│   └── config.py
-│
-├── tests/                  # Unit tests for the project
-│   ├── test_data_loading.py
-│   ├── test_model.py
-│   ├── test_training.py
-│   ├── test_evaluation.py
-│   └── test_utils.py
-│
-├── logs/                   # Log files for tracking the progress
-│   ├── model_training.log
-│   ├── data_preprocessing.log
-│   ├── evaluation.log
-│   └── system.log
-│
-├── Dockerfile              # Docker configuration
-├── docker-compose.yml      # Docker Compose configuration
-├── requirements.txt        # Python dependencies
-├── setup.py                # Python package setup
-├── .env                    # Environment variables
-├── entrypoint.sh           # Docker entrypoint script
-├── LICENSE                 # License file
-├── .gitattributes          # Git attributes
-├── .gitignore              # Git ignore rules
-├── CHANGELOG.md            # Changelog for the project
-└── README.md               # Project documentation
+```text
+Multimodel/
+  data/                 Dataset inputs and generated processed data
+  models/               Saved model artifacts
+  notebooks/            Exploration, training, and evaluation notebooks
+  reports/              Generated model reports
+  scripts/              Project automation scripts
+  src/                  Python model, training, evaluation, and utility code
+  tests/                Unit tests
+  ui/                   React + Vite frontend
+  train_models.py       Training entrypoint
+  evaluate_models.py    Evaluation entrypoint
+  run_project.py        Local ML workflow runner
 ```
 
-## Getting Started
+## Prerequisites
 
-### Prerequisites
+- Python 3.9 or newer for the ML code.
+- Node.js 18 or newer for the React frontend.
+- Git for version control.
 
-- **Python 3.9** or higher.
-- **Docker** and **Docker Compose** installed.
-- **Git** for version control.
+## Install
 
-### Installation
+Install Python dependencies from the repository root:
 
-1. **Clone the repository:**
+```bash
+pip install -r requirements.txt
+```
 
-    ```
+Install React dependencies:
 
-2. **Set up the environment:**
+```bash
+cd ui
+npm install
+```
 
-    Install the required Python packages:
-    ```bash
-    pip install -r requirements.txt
-    ```
+## Run The React Frontend
 
-3. **Download the dataset:**
+```bash
+cd ui
+npm run dev
+```
 
-    Run the provided script to download the necessary datasets:
-    ```bash
-    bash scripts/download_data.sh
-    ```
+Vite will print the local URL, usually `http://localhost:5173/`.
 
-### Running the Project
+## Build The Frontend
 
-#### Locally
+```bash
+cd ui
+npm run build
+```
 
-To train the models locally:
+The production build is written to `ui/dist/`.
 
-1. **Preprocess the data:**
-    ```bash
-    python scripts/preprocess_data.py
-    ```
+## ML Workflow
 
-2. **Train the models:**
-    ```bash
-    bash scripts/train_all_models.sh
-    ```
+Train models:
 
-3. **Evaluate the models:**
-    ```bash
-    bash scripts/evaluate_all_models.sh
-    ```
+```bash
+python train_models.py
+```
 
-#### With Docker
+Evaluate models:
 
-Alternatively, one can run the entire setup using Docker:
+```bash
+python evaluate_models.py
+```
 
-1. **Build the Docker image:**
-    ```bash
-    docker-compose build
-    ```
+Run the local project workflow:
 
-2. **Run the Docker container:**
-    ```bash
-    docker-compose up
-    ```
+```bash
+python run_project.py
+```
 
 ## Models
 
-The project includes several machine learning models:
-
-- **CNN Model** for image classification.
-- **Transformer Model** for handling sequential data.
-- **SVM Model** for baseline classification tasks.
-- **Bayesian Model** for probabilistic modeling.
-- **Vision Transformer Model** for advanced image classification tasks.
-
-## Notebooks
-
-The following Jupyter notebooks are provided for further exploration:
-
-- **Data Preprocessing:** Contains steps for cleaning and preparing the data.
-- **Exploratory Data Analysis:** Includes visualizations and insights from the dataset.
-- **Model Training:** Contains code for training the models.
-- **Model Evaluation:** Shows the evaluation results of the trained models.
-
-## Logging
-
-Logs for all major processes are stored in the `logs/` directory. This includes logs for:
-
-- Data Preprocessing
-- Model Training
-- Model Evaluation
-- System Setup and Execution
-
-## Docker Support
-
-This project supports Docker to simplify setup and deployment. The `Dockerfile` and `docker-compose.yml` are configured to run the application in a containerized environment.
-
-- The `Dockerfile` handles environment setup and installation of dependencies.
-- The `docker-compose.yml` file orchestrates the various services, such as the web app and database.
+- CNN for image classification.
+- Vision Transformer for image classification.
+- Transformer for sequence-oriented inputs.
+- SVM for baseline tabular classification.
+- Bayesian model for probabilistic baseline classification.
 
 ## License
 
-This project is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License. By using this software, you agree to the terms stated in the [LICENSE](LICENSE) file.
-
-
-
-## Run this Stramlitfile 
-
-F:/AMG-Project/Multimodel/.venv/Scripts/python.exe -m streamlit run app.py
-``` 
-// new run  method 
-
-PS F:\AMG-Project\Multimodel> pwd; Get-ChildItem -Name; py -3 --version; python --version; if (Test-Path .venv) { Write-Output 'VENV_EXISTS' }
-
-
-
-// secondly run 
-
-F:\AMG-Project\Multimodel> py -3 -m streamlit run app.py
+This project is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License. See [LICENSE](LICENSE).
