@@ -1,11 +1,18 @@
 {
-  "installCommand": "cd ui && npm install",
-  "buildCommand": "cd ui && npm run build",
-  "outputDirectory": "ui/dist",
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "ui/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ]
 }
