@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 const threats = [
@@ -43,6 +43,90 @@ function getPrediction(file, threshold) {
     confidence,
     fakeProbability,
     model: fakeProbability > 0.62 ? 'Vision Transformer + CNN' : 'CNN authenticity model',
+  }
+}
+
+async function fetchDetection(file, signal) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch('/api/detect', {
+    method: 'POST',
+    body: formData,
+    signal,
+  })
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Detection failed.')
+  }
+
+  return normalizeDetectionPayload(payload)
+}
+
+function normalizeDetectionPayload(payload) {
+  return {
+    filename: payload.filename,
+    kind: payload.kind,
+    label: payload.label,
+    confidence: payload.confidence,
+    fakeProbability: payload.fake_probability,
+    autoThreshold: payload.auto_threshold,
+    model: payload.model,
+    signals: payload.signals,
+    features: payload.features,
+  }
+}
+
+async function fetchBatchDetection(files, signal) {
+  const formData = new FormData()
+  files.forEach((file) => formData.append('files', file))
+
+  const response = await fetch('/api/detect/batch', {
+    method: 'POST',
+    body: formData,
+    signal,
+  })
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Batch detection failed.')
+  }
+
+  return (payload.results ?? []).map((item) => ({
+    index: item.index,
+    ok: item.ok,
+    error: item.error,
+    prediction: item.result ? normalizeDetectionPayload(item.result) : null,
+  }))
+}
+
+function featurePreview(values = []) {
+  return values.slice(0, 6).map((value) => Number(value).toFixed(3)).join(', ')
+}
+
+function fileKind(file) {
+  const extension = file?.name?.toLowerCase().split('.').pop()
+
+  if (file?.type?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(extension)) return 'Image'
+  if (file?.type?.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(extension)) return 'Video'
+  if (file?.type?.startsWith('audio/') || ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac'].includes(extension)) return 'Audio'
+  if (extension === 'csv') return 'CSV'
+  return 'Media'
+}
+
+function historyItem(file, prediction, source = 'Single') {
+  return {
+    id: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random()}`,
+    name: file.name,
+    kind: prediction.kind || fileKind(file),
+    source,
+    size: file.size,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    label: prediction.label,
+    confidence: Math.round(prediction.confidence * 100),
+    fakeProbability: Number((prediction.fakeProbability * 100).toFixed(1)),
+    threshold: prediction.autoThreshold,
   }
 }
 
@@ -199,20 +283,113 @@ function HeroVisual() {
 function Detector() {
   const [file, setFile] = useState(null)
   const [batchFiles, setBatchFiles] = useState([])
-  const [threshold, setThreshold] = useState(0.52)
+  const [threshold, setThreshold] = useState(null)
   const [mode, setMode] = useState('Image')
-  const previewUrl = useMemo(() => (file?.type?.startsWith('image/') ? URL.createObjectURL(file) : ''), [file])
-  const prediction = file ? getPrediction(file, threshold) : null
-  const batchResults = useMemo(
-    () =>
-      batchFiles.map((batchFile) => ({
-        file: batchFile,
-        prediction: getPrediction(batchFile, threshold),
-      })),
-    [batchFiles, threshold],
-  )
-  const fakeBatch = batchResults.filter(({ prediction: itemPrediction }) => itemPrediction.label.includes('Deepfake'))
-  const realBatch = batchResults.filter(({ prediction: itemPrediction }) => !itemPrediction.label.includes('Deepfake'))
+  const [activeTab, setActiveTab] = useState('Result')
+  const [history, setHistory] = useState([])
+  const [prediction, setPrediction] = useState(null)
+  const [detectionStatus, setDetectionStatus] = useState('idle')
+  const [detectionError, setDetectionError] = useState('')
+  const [batchResults, setBatchResults] = useState([])
+  const [batchStatus, setBatchStatus] = useState('idle')
+  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : ''), [file])
+  const currentKind = fileKind(file)
+  const isImage = currentKind === 'Image'
+  const isVideo = currentKind === 'Video'
+  const isAudio = currentKind === 'Audio'
+  const completedBatch = batchResults.filter(({ prediction: itemPrediction }) => itemPrediction)
+  const failedBatch = batchResults.filter(({ error }) => error)
+  const fakeBatch = completedBatch.filter(({ prediction: itemPrediction }) => itemPrediction.label.includes('Deepfake'))
+  const realBatch = completedBatch.filter(({ prediction: itemPrediction }) => !itemPrediction.label.includes('Deepfake'))
+  const historyRiskCount = history.filter((item) => item.label.includes('Deepfake')).length
+  const averageConfidence = history.length
+    ? Math.round(history.reduce((sum, item) => sum + item.confidence, 0) / history.length)
+    : 0
+
+  function addHistory(items, source) {
+    const nextItems = items.map(({ file: item, prediction: itemPrediction }) => historyItem(item, itemPrediction, source))
+    setHistory((current) => [...nextItems, ...current].slice(0, 10))
+  }
+
+  function handleFileChange(event) {
+    const nextFile = event.target.files?.[0] ?? null
+    setFile(nextFile)
+
+    if (nextFile) {
+      setMode(fileKind(nextFile))
+      setActiveTab('Result')
+    }
+  }
+
+  function handleBatchChange(event) {
+    const nextFiles = Array.from(event.target.files ?? [])
+    setBatchFiles(nextFiles)
+
+    if (nextFiles.length) {
+      setBatchStatus('loading')
+    }
+  }
+
+  useEffect(() => {
+    if (!file) {
+      setPrediction(null)
+      setThreshold(null)
+      setDetectionStatus('idle')
+      setDetectionError('')
+      return undefined
+    }
+
+    const controller = new AbortController()
+    setPrediction(null)
+    setDetectionStatus('loading')
+    setDetectionError('')
+
+    fetchDetection(file, controller.signal)
+      .then((payload) => {
+        setPrediction(payload)
+        setThreshold(payload.autoThreshold)
+        setDetectionStatus('ready')
+
+        addHistory([{ file, prediction: payload }], 'Single')
+      })
+      .catch((error) => {
+        if (error.name === 'AbortError') return
+        setDetectionStatus('error')
+        setDetectionError(error.message)
+      })
+
+    return () => controller.abort()
+  }, [file, isAudio])
+
+  useEffect(() => {
+    if (!batchFiles.length) {
+      setBatchResults([])
+      setBatchStatus('idle')
+      return undefined
+    }
+
+    const controller = new AbortController()
+    setBatchStatus('loading')
+    setBatchResults([])
+
+    fetchBatchDetection(batchFiles, controller.signal)
+      .then((items) => {
+        const results = items.map((item) => ({
+          file: batchFiles[item.index],
+          prediction: item.prediction,
+          error: item.error,
+        }))
+        setBatchResults(results)
+        setBatchStatus('ready')
+        addHistory(results.filter(({ prediction: itemPrediction }) => itemPrediction), 'Batch')
+      })
+      .catch((error) => {
+        if (error.name === 'AbortError') return
+        setBatchStatus('error')
+      })
+
+    return () => controller.abort()
+  }, [batchFiles])
 
   return (
     <section className="detector-section" id="detector">
@@ -239,42 +416,157 @@ function Detector() {
             <input
               type="file"
               accept="image/*,video/*,audio/*,.csv"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              onChange={handleFileChange}
             />
             <span>UPLOAD</span>
             <strong>{file ? file.name : 'Drop media for analysis'}</strong>
             <small>{file ? `${(file.size / 1024).toFixed(1)} KB selected` : 'Supports image, video, audio, and CSV'}</small>
           </label>
 
-          <label className="range-field">
-            <span>Decision threshold <b>{threshold.toFixed(2)}</b></span>
-            <input
-              type="range"
-              min="0.1"
-              max="0.9"
-              step="0.01"
-              value={threshold}
-              onChange={(event) => setThreshold(Number(event.target.value))}
-            />
-          </label>
+          <div className="range-field threshold-readout">
+            <span>Backend threshold <b>{threshold ? threshold.toFixed(3) : 'Auto'}</b></span>
+            <div className="threshold-track">
+              <span style={{ width: `${threshold ? threshold * 100 : 0}%` }} />
+            </div>
+            <small>Calculated automatically from media type and extracted signals.</small>
+          </div>
         </div>
 
         <div className="detector-result">
-          {previewUrl ? <img src={previewUrl} alt="Uploaded sample preview" /> : <div className="preview-empty">Preview</div>}
-          {prediction ? (
-            <div className="result-copy">
-              <span className={prediction.label.includes('Deepfake') ? 'status risk' : 'status safe'}>{prediction.label}</span>
-              <h3>{Math.round(prediction.confidence * 100)}% confidence</h3>
-              <p>{prediction.model} reviewed this {mode.toLowerCase()} sample.</p>
-              <div className="meter"><span style={{ width: `${prediction.fakeProbability * 100}%` }} /></div>
-              <small>Deepfake probability: {(prediction.fakeProbability * 100).toFixed(1)}%</small>
+          {previewUrl ? (
+            isImage ? (
+              <img src={previewUrl} alt="Uploaded sample preview" />
+            ) : isVideo ? (
+              <video src={previewUrl} controls style={{ width: '100%', minHeight: 380, borderRadius: 22, objectFit: 'cover', background: 'linear-gradient(135deg, #e5f8f0, #f7fbf9)' }}>
+                Your browser does not support the video tag.
+              </video>
+            ) : isAudio ? (
+              <div className="audio-preview">
+                <audio src={previewUrl} controls>
+                  Your browser does not support the audio tag.
+                </audio>
+                {detectionStatus === 'loading' ? (
+                  <div className="audio-feature-panel muted">Extracting audio features and running the audio model...</div>
+                ) : prediction?.features ? (
+                  <div className="audio-feature-panel">
+                    <div className="audio-feature-head">
+                      <span>Extracted Audio Features</span>
+                      <b>{prediction.features.feature_count} values</b>
+                    </div>
+                    <div className="audio-feature-meta">
+                      <span>{prediction.features.sample_rate} Hz</span>
+                      <span>{prediction.features.duration_seconds}s</span>
+                      <span>{prediction.filename}</span>
+                    </div>
+                    <div className="audio-feature-grid">
+                      <div>
+                        <span>MFCC</span>
+                        <p>{featurePreview(prediction.features.mfcc)}</p>
+                      </div>
+                      <div>
+                        <span>Chroma</span>
+                        <p>{featurePreview(prediction.features.chroma)}</p>
+                      </div>
+                      <div>
+                        <span>Spectral Contrast</span>
+                        <p>{featurePreview(prediction.features.spectral_contrast)}</p>
+                      </div>
+                    </div>
+                    <details>
+                      <summary>JSON</summary>
+                      <pre>{JSON.stringify(prediction.features, null, 2)}</pre>
+                    </details>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="preview-empty">Preview</div>
+            )
+          ) : <div className="preview-empty">Preview</div>}
+          <aside className="result-panel">
+            <div className="analysis-tabs">
+              {['Result', 'Insight', 'History'].map((tab) => (
+                <button className={activeTab === tab ? 'active' : ''} key={tab} onClick={() => setActiveTab(tab)}>
+                  {tab}
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="result-copy muted">
-              <h3>Awaiting sample</h3>
-              <p>Select a file to run the interface flow.</p>
-            </div>
-          )}
+
+            {activeTab === 'Result' ? (
+              detectionStatus === 'loading' ? (
+                <div className="result-copy muted">
+                  <h3>Analyzing sample</h3>
+                  <p>Backend is extracting signals and choosing the decision threshold.</p>
+                </div>
+              ) : detectionStatus === 'error' ? (
+                <div className="result-copy muted">
+                  <h3>Analysis failed</h3>
+                  <p>{detectionError}</p>
+                </div>
+              ) : prediction ? (
+                <div className="result-copy">
+                  <span className={prediction.label.includes('Deepfake') ? 'status risk' : 'status safe'}>{prediction.label}</span>
+                  <h3>{Math.round(prediction.confidence * 100)}% confidence</h3>
+                  <p>{prediction.model} reviewed this {mode.toLowerCase()} sample.</p>
+                  <div className="meter"><span style={{ width: `${prediction.fakeProbability * 100}%` }} /></div>
+                  <small>Deepfake probability: {(prediction.fakeProbability * 100).toFixed(1)}%</small>
+                  <small>Backend threshold: {prediction.autoThreshold.toFixed(3)}</small>
+                </div>
+              ) : (
+                <div className="result-copy muted">
+                  <h3>Awaiting sample</h3>
+                  <p>Select a file to run the interface flow.</p>
+                </div>
+              )
+            ) : null}
+
+            {activeTab === 'Insight' ? (
+              <div className="insight-panel">
+                <div className="insight-stat">
+                  <span>Analyzed</span>
+                  <strong>{history.length}</strong>
+                </div>
+                <div className="insight-stat risk">
+                  <span>Risk flags</span>
+                  <strong>{historyRiskCount}</strong>
+                </div>
+                <div className="insight-stat">
+                  <span>Avg confidence</span>
+                  <strong>{averageConfidence}%</strong>
+                </div>
+                <div className="insight-list">
+                  <div><span>Backend threshold</span><b>{threshold ? threshold.toFixed(3) : 'Auto'}</b></div>
+                  <div><span>Current modality</span><b>{file ? fileKind(file) : mode}</b></div>
+                  <div><span>Batch split</span><b>{fakeBatch.length} fake / {realBatch.length} real</b></div>
+                  <div><span>Batch errors</span><b>{failedBatch.length}</b></div>
+                  <div><span>Audio features</span><b>{prediction?.features ? `${prediction.features.feature_count} values` : 'pending'}</b></div>
+                  <div><span>Detection status</span><b>{detectionStatus}</b></div>
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === 'History' ? (
+              <div className="history-panel">
+                <h3>Recent scans</h3>
+                {history.length ? (
+                  history.map((item) => (
+                    <article className="history-item" key={item.id}>
+                      <div>
+                        <strong>{item.name}</strong>
+                        <span>{item.time} | {item.kind} | {item.source}</span>
+                      </div>
+                      <span className={item.label.includes('Deepfake') ? 'status risk' : 'status safe'}>
+                        {item.label.includes('Deepfake') ? 'Fake' : 'Real'}
+                      </span>
+                      <small>{item.confidence}% confidence | {item.fakeProbability}% probability | T {item.threshold?.toFixed(3) ?? 'auto'}</small>
+                    </article>
+                  ))
+                ) : (
+                  <div className="history-empty">Recent detections will appear here.</div>
+                )}
+              </div>
+            ) : null}
+          </aside>
         </div>
       </div>
 
@@ -294,7 +586,7 @@ function Detector() {
               type="file"
               multiple
               accept="image/*,video/*,audio/*,.csv"
-              onChange={(event) => setBatchFiles(Array.from(event.target.files ?? []))}
+              onChange={handleBatchChange}
             />
             <span>BATCH</span>
             <strong>{batchFiles.length ? `${batchFiles.length} files loaded` : 'Upload fake and real batch'}</strong>
@@ -321,17 +613,31 @@ function Detector() {
               <span>Confidence</span>
               <span>Probability</span>
             </div>
-            {batchResults.length ? (
-              batchResults.map(({ file: batchFile, prediction: itemPrediction }) => (
+            {batchStatus === 'loading' ? (
+              <div className="batch-empty">Backend is analyzing batch files...</div>
+            ) : batchStatus === 'error' ? (
+              <div className="batch-empty">Batch analysis failed. Try a smaller set or supported media files.</div>
+            ) : batchResults.length ? (
+              batchResults.map(({ file: batchFile, prediction: itemPrediction, error }) => (
                 <div className="batch-row" key={`${batchFile.name}-${batchFile.size}`}>
                   <span>{batchFile.name}</span>
-                  <span className={itemPrediction.label.includes('Deepfake') ? 'status risk' : 'status safe'}>
-                    {itemPrediction.label.includes('Deepfake') ? 'Fake' : 'Real'}
-                  </span>
-                  <strong>{Math.round(itemPrediction.confidence * 100)}%</strong>
-                  <div className="meter">
-                    <span style={{ width: `${itemPrediction.fakeProbability * 100}%` }} />
-                  </div>
+                  {itemPrediction ? (
+                    <>
+                      <span className={itemPrediction.label.includes('Deepfake') ? 'status risk' : 'status safe'}>
+                        {itemPrediction.label.includes('Deepfake') ? 'Fake' : 'Real'}
+                      </span>
+                      <strong>{Math.round(itemPrediction.confidence * 100)}%</strong>
+                      <div className="meter">
+                        <span style={{ width: `${itemPrediction.fakeProbability * 100}%` }} />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="status warn">Failed</span>
+                      <strong>--</strong>
+                      <small>{error}</small>
+                    </>
+                  )}
                 </div>
               ))
             ) : (

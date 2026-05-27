@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reality Shield Auth</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
+</head>
+<body>
+    <main class="shell">
+        <section class="hero">
+            <p class="eyebrow">DipShield</p>
+            <h1>Account access</h1>
+            <p class="lede">Register, log in, and manage your session with a local SQLite user database.</p>
+        </section>
+
+        <section class="panel">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="messages">
+                        {% for category, message in messages %}
+                            <p class="message {{ category }}">{{ message }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% if user %}
+                <div class="status">
+                    <span class="status-dot"></span>
+                    <span>Signed in</span>
+                </div>
+                <h2>Welcome, {{ user.username }}</h2>
+                <p class="muted">Your account is stored in the local SQLite auth database.</p>
+                <a class="button full" href="{{ url_for('main_project') }}">Open main project</a>
+                <form action="{{ url_for('logout') }}" method="post">
+                    <button type="submit">Logout</button>
+                </form>
+            {% else %}
+                <div class="status muted">
+                    <span class="status-dot idle"></span>
+                    <span>Guest session</span>
+                </div>
+                <h2>Welcome</h2>
+                <p class="muted">Create an account or log in to start a protected session.</p>
+                <div class="actions">
+                    <a class="button" href="{{ url_for('login') }}">Login</a>
+                    <a class="button secondary" href="{{ url_for('register') }}">Register</a>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

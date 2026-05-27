@@ -1,13 +1,29 @@
-# Multimodal Deepfake Detection UI
+# Reality Shield UI
 
-React frontend built with Vite.
+React frontend built with Vite. For the full project startup guide, read the root `README.md`.
 
-## Scripts
+## Setup
 
-```bash
+```powershell
 npm install
-npm run dev
-npm run build
 ```
 
-The development server runs from this `ui/` directory.
+## Start Frontend
+
+```powershell
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173/index.html
+```
+
+The Flask auth app redirects here after login.
+
+## Build
+
+```powershell
+npm run build
+```
